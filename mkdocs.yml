@@ -1,0 +1,39 @@
+site_name: Kalxulus
+site_url: https://github.com/Kalixo-Labs/KalixoTools
+repo_url: https://github.com/Kalixo-Labs/KalixoTools
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.top
+nav:
+  - README: index.md
+  - API:
+    - kalxulus: api/kalxulus.md
+
+plugins:
+  - include-markdown
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths:
+            - src
+          options:
+            docstring_style: google         # or "numpy"
+            show_source: true
+            show_root_full_path: false
+            show_submodules: true
+            separate_signature: true
+            inherited_members: true
+            members_order: source
+            merge_init_into_class: true
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+  - tables
+  - pymdownx.highlight
+  - pymdownx.superfences
