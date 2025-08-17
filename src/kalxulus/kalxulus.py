@@ -236,7 +236,7 @@ class Kalxulus:
         return None
 
     def derivative(self, y_values: Union[Sequence[float] | np.ndarray], derivative_order: int = None,
-                   num_points: int = None):
+                   num_points: int = None) -> np.ndarray:
         """Apply the derivative operator to y-values.
 
         Computes the derivative of y_values sampled at x_values using the
@@ -249,7 +249,7 @@ class Kalxulus:
             num_points (int, optional): Stencil size to use. Defaults to self.num_points.
 
         Returns:
-            NDArray[np.float64]: The differentiated values with the same length as x_values.
+            np.ndarray: The differentiated values with the same length as x_values.
 
         Raises:
             TypeError: If derivative_order or num_points are not valid integers.
@@ -274,10 +274,10 @@ class Kalxulus:
 
     def __integration_function(self, inverted_matrix, yp, constant):
         # Private helper; no public docstring required.
-        YI = np.inner(inverted_matrix, np.asarray(yp))
-        return YI - YI[0] + constant
+        y_inv = np.inner(inverted_matrix, np.asarray(yp))
+        return y_inv - y_inv[0] + constant
 
-    def integral(self, y_values, integration_order=None, num_points=None, constant=0.):
+    def integral(self, y_values, integration_order=None, num_points=None, constant=0.) -> np.ndarray:
         """Numerically integrate y-values by inverting the derivative operator.
 
         Uses the pseudoinverse of the derivative operator (for the given
@@ -292,7 +292,7 @@ class Kalxulus:
             constant (float, optional): Integration constant added after shifting the first value to zero. Defaults to 0.0.
 
         Returns:
-            numpy.ndarray: The integrated values after applying the specified number of integrations.
+            np.ndarray: The integrated values after applying the specified number of integrations.
 
         Raises:
             TypeError: If integration_order or num_points are not valid integers.
