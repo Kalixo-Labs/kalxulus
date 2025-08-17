@@ -29,7 +29,8 @@ try:
 except Exception:  # pragma: no cover
     # Fallback to installed package metadata
     try:
-        from importlib.metadata import version, PackageNotFoundError  # Python 3.8+
+        from importlib.metadata import (PackageNotFoundError,  # Python 3.8+
+                                        version)
     except Exception:  # pragma: no cover
         # Ultimate fallback if importlib.metadata unavailable
         __version__ = "0.0.0"  # type: ignore[assignment]
@@ -39,8 +40,8 @@ except Exception:  # pragma: no cover
         except PackageNotFoundError:
             __version__ = "0.0.0"  # type: ignore[assignment]
 
-from .kalxulus import Kalxulus  # public class
 from . import kalxulus as kalxulus  # re-export submodule for advanced users
+from .kalxulus import Kalxulus  # public class
 
 
 def derivative(

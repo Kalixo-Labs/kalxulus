@@ -25,13 +25,15 @@ Basic Usage:
 
 """
 from __future__ import annotations
-import itertools
-from math import factorial
+
 import argparse
+import itertools
 import sys
-from scipy.sparse import csr_matrix
-from typing import Optional, Sequence, Literal, Union
+from math import factorial
+from typing import Literal, Optional, Sequence, Union
+
 import numpy as np
+from scipy.sparse import csr_matrix
 
 
 class Kalxulus:
@@ -247,7 +249,7 @@ class Kalxulus:
             num_points (int, optional): Stencil size to use. Defaults to self.num_points.
 
         Returns:
-            np.ndarray: The differentiated values with the same length as x_values.
+            numpy.ndarray: The differentiated values with the same length as x_values.
 
         Raises:
             TypeError: If derivative_order or num_points are not valid integers.
@@ -290,7 +292,7 @@ class Kalxulus:
             constant (float, optional): Integration constant added after shifting the first value to zero. Defaults to 0.0.
 
         Returns:
-            np.ndarray: The integrated values after applying the specified number of integrations.
+            numpy.ndarray: The integrated values after applying the specified number of integrations.
 
         Raises:
             TypeError: If integration_order or num_points are not valid integers.
