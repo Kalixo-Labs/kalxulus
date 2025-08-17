@@ -21,7 +21,7 @@ Quick start:
 
 from __future__ import annotations
 
-from typing import Iterable, Sequence, Optional
+from typing import Sequence
 
 # Prefer version injected by VCS (e.g., hatch-vcs -> src/kalxulus/_version.py)
 try:
@@ -44,12 +44,12 @@ from . import kalxulus as kalxulus  # re-export submodule for advanced users
 
 
 def derivative(
-    x_values: Sequence[float],
-    y_values: Sequence[float],
-    derivative_order: int = 1,
-    num_points: int = 8,
-    solver: str = "scipy",
-    tolerance: float = 1e-8,
+        x_values: Sequence[float],
+        y_values: Sequence[float],
+        derivative_order: int = 1,
+        num_points: int = 8,
+        solver: str = "scipy",
+        tolerance: float = 1e-8,
 ):
     """Compute the numerical derivative of y(x) using a finite-difference scheme.
 
@@ -90,13 +90,13 @@ def derivative(
 
 
 def integral(
-    x_values: Sequence[float],
-    y_values: Sequence[float],
-    integration_order: int = 1,
-    num_points: int = 8,
-    solver: str = "scipy",
-    tolerance: float = 1e-8,
-    constant: float = 0.0,
+        x_values: Sequence[float],
+        y_values: Sequence[float],
+        integration_order: int = 1,
+        num_points: int = 8,
+        solver: str = "scipy",
+        tolerance: float = 1e-8,
+        constant: float = 0.0,
 ):
     """Compute the numerical integral (antiderivative) of y(x).
 
@@ -135,7 +135,8 @@ def integral(
         solver=solver,
         tolerance=tolerance,
     )
-    return kx.integral(np.asarray(y_values), integration_order=int(integration_order), num_points=num_points, constant=constant)
+    return kx.integral(np.asarray(y_values), integration_order=int(integration_order), num_points=num_points,
+                       constant=constant)
 
 
 __all__ = [
