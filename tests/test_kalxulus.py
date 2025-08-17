@@ -34,7 +34,6 @@ class TestKalxulus:
         assert dy_dx.shape == y.shape
         np.testing.assert_allclose(dy_dx, np.cos(x), atol=1e-4)
 
-
     def test_second_derivative(self, sample_data):
         x, y = sample_data
         kalx = Kalxulus(x_values=x, derivative_order=2, num_points=13)

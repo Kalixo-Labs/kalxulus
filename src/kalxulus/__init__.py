@@ -29,14 +29,18 @@ try:
 except Exception:  # pragma: no cover
     # Fallback to installed package metadata
     try:
-        from importlib.metadata import (PackageNotFoundError,  # Python 3.8+
-                                        version)
+        from importlib.metadata import (
+            PackageNotFoundError,  # Python 3.8+
+            version,
+        )
     except Exception:  # pragma: no cover
         # Ultimate fallback if importlib.metadata unavailable
         __version__ = "0.0.0"  # type: ignore[assignment]
     else:  # pragma: no cover
         try:
-            __version__ = version("kalixo-kalxulus")  # must match [project].name in pyproject.toml
+            __version__ = version(
+                "kalixo-kalxulus"
+            )  # must match [project].name in pyproject.toml
         except PackageNotFoundError:
             __version__ = "0.0.0"  # type: ignore[assignment]
 
@@ -45,12 +49,12 @@ from .kalxulus import Kalxulus  # public class
 
 
 def derivative(
-        x_values: Sequence[float],
-        y_values: Sequence[float],
-        derivative_order: int = 1,
-        num_points: int = 8,
-        solver: str = "scipy",
-        tolerance: float = 1e-8,
+    x_values: Sequence[float],
+    y_values: Sequence[float],
+    derivative_order: int = 1,
+    num_points: int = 8,
+    solver: str = "scipy",
+    tolerance: float = 1e-8,
 ):
     """Compute the numerical derivative of y(x) using a finite-difference scheme.
 
@@ -91,13 +95,13 @@ def derivative(
 
 
 def integral(
-        x_values: Sequence[float],
-        y_values: Sequence[float],
-        integration_order: int = 1,
-        num_points: int = 8,
-        solver: str = "scipy",
-        tolerance: float = 1e-8,
-        constant: float = 0.0,
+    x_values: Sequence[float],
+    y_values: Sequence[float],
+    integration_order: int = 1,
+    num_points: int = 8,
+    solver: str = "scipy",
+    tolerance: float = 1e-8,
+    constant: float = 0.0,
 ):
     """Compute the numerical integral (antiderivative) of y(x).
 
@@ -131,13 +135,19 @@ def integral(
 
     kx = Kalxulus(
         x_values=np.asarray(x_values),
-        derivative_order=max(1, int(integration_order)),  # internal order used to construct operator
+        derivative_order=max(
+            1, int(integration_order)
+        ),  # internal order used to construct operator
         num_points=num_points,
         solver=solver,
         tolerance=tolerance,
     )
-    return kx.integral(np.asarray(y_values), integration_order=int(integration_order), num_points=num_points,
-                       constant=constant)
+    return kx.integral(
+        np.asarray(y_values),
+        integration_order=int(integration_order),
+        num_points=num_points,
+        constant=constant,
+    )
 
 
 __all__ = [

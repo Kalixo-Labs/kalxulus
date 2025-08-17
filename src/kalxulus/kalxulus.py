@@ -24,6 +24,7 @@ Basic Usage:
     ```
 
 """
+
 from __future__ import annotations
 
 import argparse
@@ -38,12 +39,12 @@ from scipy.sparse import csr_matrix
 
 class Kalxulus:
     def __init__(
-            self,
-            x_values: Optional[Sequence[float] | np.ndarray] = None,
-            derivative_order: int = 1,
-            num_points: int = 8,
-            solver: Literal["numpy", "scipy"] = "scipy",
-            tolerance: float = 1e-8,
+        self,
+        x_values: Optional[Sequence[float] | np.ndarray] = None,
+        derivative_order: int = 1,
+        num_points: int = 8,
+        solver: Literal["numpy", "scipy"] = "scipy",
+        tolerance: float = 1e-8,
     ) -> None:
         """Compute numerical derivatives and integrals over 1-D sample points.
 
@@ -94,7 +95,9 @@ class Kalxulus:
                 raise ValueError("x_values must be a 1-D sequence.")
             self.x_values = arr
         else:
-            raise TypeError("x_values must be a 1-D sequence (list/tuple) or numpy.ndarray.")
+            raise TypeError(
+                "x_values must be a 1-D sequence (list/tuple) or numpy.ndarray."
+            )
 
         # derivative_order
         if not isinstance(derivative_order, int):
@@ -155,13 +158,17 @@ class Kalxulus:
         if (derivative_order, ld) in self.G:
             return self.G[(derivative_order, ld)]
         else:
-            self.G[(derivative_order, ld)] = \
-                np.array(list(itertools.combinations(range(ld), ld - (derivative_order - 1))), dtype='int')
+            self.G[(derivative_order, ld)] = np.array(
+                list(itertools.combinations(range(ld), ld - (derivative_order - 1))),
+                dtype="int",
+            )
             return self.G[(derivative_order, ld)]
 
     def __a_function(self, delta, derivative_order):
         # Private helper; no public docstring required.
-        return np.prod(np.array(delta)[self.__G_function(len(delta), derivative_order)], axis=1).sum()
+        return np.prod(
+            np.array(delta)[self.__G_function(len(delta), derivative_order)], axis=1
+        ).sum()
 
     def gen_coefficients(self, derivative_order: int, num_points: int):
         # """Generate and cache derivative operator coefficients.
@@ -189,54 +196,74 @@ class Kalxulus:
 
         if derivative_order == 0:
             if self.solver == "numpy":
-                self.derivative_coefficients[(derivative_order, num_points)] = np.eye(len(self.x_values))
+                self.derivative_coefficients[(derivative_order, num_points)] = np.eye(
+                    len(self.x_values)
+                )
                 return None
             elif self.solver == "scipy":
-                self.derivative_coefficients[(derivative_order, num_points)] = csr_matrix(
-                    np.eye(len(self.x_values))).tocsc()
+                self.derivative_coefficients[(derivative_order, num_points)] = (
+                    csr_matrix(np.eye(len(self.x_values))).tocsc()
+                )
                 return None
 
         N = len(self.x_values) - 1
         lx = num_points + 1
         K = num_points // 2
-        coeffs = np.zeros((N + 1, lx), dtype='float64')
-        derivative_order_factorial = (-1) ** derivative_order * factorial(derivative_order)
+        coeffs = np.zeros((N + 1, lx), dtype="float64")
+        derivative_order_factorial = (-1) ** derivative_order * factorial(
+            derivative_order
+        )
         factors = np.minimum(np.maximum(np.arange(N + 1) - K, 0), N - num_points)
 
         ind = np.array(np.outer(factors, np.ones(lx)) + np.arange(lx), dtype=int)
         jk = np.indices((lx, lx))
         dmaski = np.eye(lx, dtype=bool)
         for i in range(N + 1):
-            prod = np.array((self.x_values[jk[1] + factors[i]] - self.x_values[jk[0] + factors[i]]))
+            prod = np.array(
+                (self.x_values[jk[1] + factors[i]] - self.x_values[jk[0] + factors[i]])
+            )
             np.fill_diagonal(prod, 1)
             prods = prod.prod(axis=1)
             dmask = np.copy(dmaski)
             dmask[:, i - factors[i]] = True
             dmask[i - factors[i], :] = True
-            delta = np.ma.array(self.x_values[jk[1] + factors[i]] - self.x_values[i], mask=dmask)
+            delta = np.ma.array(
+                self.x_values[jk[1] + factors[i]] - self.x_values[i], mask=dmask
+            )
             for j in range(lx):
                 if j == i - factors[i]:
                     pass
                 else:
-                    coeffs[i, j] = self.__a_function(delta[j].compressed(), derivative_order) / prods[j]
-            coeffs[i, np.abs(coeffs[i, :]) < self.tolerance] = 0.
-            coeffs[i, i - factors[i]] = -1. * coeffs[i].sum()
+                    coeffs[i, j] = (
+                        self.__a_function(delta[j].compressed(), derivative_order)
+                        / prods[j]
+                    )
+            coeffs[i, np.abs(coeffs[i, :]) < self.tolerance] = 0.0
+            coeffs[i, i - factors[i]] = -1.0 * coeffs[i].sum()
         coeffs *= derivative_order_factorial
-        if self.solver == 'numpy':
+        if self.solver == "numpy":
             mat = np.zeros([len(coeffs)] * 2)
             for i in range(len(coeffs)):
                 for index in range(len(ind[i])):
                     mat[i, ind[i, index]] = coeffs[i, index]
             self.derivative_coefficients[(derivative_order, num_points)] = mat.copy()
-        if self.solver == 'scipy':
-            indptr = np.array([0] + np.cumsum(np.array([len(i) for i in coeffs])).tolist())
-            mat = csr_matrix((coeffs.ravel(), ind.ravel(), indptr), shape=(N + 1, N + 1)).tocsc()
+        if self.solver == "scipy":
+            indptr = np.array(
+                [0] + np.cumsum(np.array([len(i) for i in coeffs])).tolist()
+            )
+            mat = csr_matrix(
+                (coeffs.ravel(), ind.ravel(), indptr), shape=(N + 1, N + 1)
+            ).tocsc()
             self.derivative_coefficients[(derivative_order, num_points)] = mat.copy()
 
         return None
 
-    def derivative(self, y_values: Union[Sequence[float] | np.ndarray], derivative_order: int = None,
-                   num_points: int = None) -> np.ndarray:
+    def derivative(
+        self,
+        y_values: Union[Sequence[float] | np.ndarray],
+        derivative_order: int = None,
+        num_points: int = None,
+    ) -> np.ndarray:
         """Apply the derivative operator to y-values.
 
         Computes the derivative of y_values sampled at x_values using the
@@ -267,17 +294,24 @@ class Kalxulus:
 
         if (derivative_order, num_points) not in self.derivative_coefficients:
             self.gen_coefficients(int(derivative_order), int(num_points))
-        if self.solver == 'numpy':
-            return np.inner(self.derivative_coefficients[(derivative_order, num_points)], np.asarray(y_values))
-        if self.solver == 'scipy':
-            return self.derivative_coefficients[(derivative_order, num_points)].dot(np.asarray(y_values))
+        if self.solver == "numpy":
+            return np.inner(
+                self.derivative_coefficients[(derivative_order, num_points)],
+                np.asarray(y_values),
+            )
+        if self.solver == "scipy":
+            return self.derivative_coefficients[(derivative_order, num_points)].dot(
+                np.asarray(y_values)
+            )
 
     def __integration_function(self, inverted_matrix, yp, constant):
         # Private helper; no public docstring required.
         y_inv = np.inner(inverted_matrix, np.asarray(yp))
         return y_inv - y_inv[0] + constant
 
-    def integral(self, y_values, integration_order=None, num_points=None, constant=0.) -> np.ndarray:
+    def integral(
+        self, y_values, integration_order=None, num_points=None, constant=0.0
+    ) -> np.ndarray:
         """Numerically integrate y-values by inverting the derivative operator.
 
         Uses the pseudoinverse of the derivative operator (for the given
@@ -311,19 +345,30 @@ class Kalxulus:
         if (integration_order, num_points) not in self.integration_coefficients:
             if (integration_order, num_points) not in self.derivative_coefficients:
                 self.gen_coefficients(integration_order, num_points)
-            if self.solver == 'numpy':
-                self.integration_coefficients[(integration_order, num_points)] = np.linalg.pinv(
-                    self.derivative_coefficients[(integration_order, num_points)])  # 1
-            if self.solver == 'scipy':
-                self.integration_coefficients[(integration_order, num_points)] = np.linalg.pinv(
-                    self.derivative_coefficients[(integration_order, num_points)].toarray())  # 2
+            if self.solver == "numpy":
+                self.integration_coefficients[(integration_order, num_points)] = (
+                    np.linalg.pinv(
+                        self.derivative_coefficients[(integration_order, num_points)]
+                    )
+                )  # 1
+            if self.solver == "scipy":
+                self.integration_coefficients[(integration_order, num_points)] = (
+                    np.linalg.pinv(
+                        self.derivative_coefficients[
+                            (integration_order, num_points)
+                        ].toarray()
+                    )
+                )  # 2
         integrated_values = np.asarray(y_values).copy()
 
         for ints in range(integration_order):
             integrated_values = self.__integration_function(
-                inverted_matrix=self.integration_coefficients[(integration_order, num_points)],
+                inverted_matrix=self.integration_coefficients[
+                    (integration_order, num_points)
+                ],
                 yp=integrated_values,
-                constant=constant)
+                constant=constant,
+            )
         return integrated_values
 
 
@@ -332,42 +377,85 @@ class Kalxulus:
 # ==================================================================#
 if __name__ == "__main__":
     description = "Kalixo Derivative and Integral Toolkit"
-    ap = argparse.ArgumentParser(description=description,
-                                 epilog='All Rights Reserved, Kalixo 2018')
+    ap = argparse.ArgumentParser(
+        description=description, epilog="All Rights Reserved, Kalixo 2018"
+    )
 
-    ap.add_argument("-i", "--infile", type=argparse.FileType('r'), dest='INFILE', default=sys.stdin,
-                    help="Name of input data file. Must be in delimted, two column format. You may also pipe data directly to the script in the same format, ommiting the '-i' command. (Default: stdin)")
+    ap.add_argument(
+        "-i",
+        "--infile",
+        type=argparse.FileType("r"),
+        dest="INFILE",
+        default=sys.stdin,
+        help="Name of input data file. Must be in delimted, two column format. You may also pipe data directly to the script in the same format, ommiting the '-i' command. (Default: stdin)",
+    )
 
-    ap.add_argument("-o", "--outfile", dest='OUTFILE', type=argparse.FileType('w'), default=sys.stdout,
-                    help="Name of output data file. Can also be piped to stdout by ommiting the '-o' command. (Default: stdout)")
+    ap.add_argument(
+        "-o",
+        "--outfile",
+        dest="OUTFILE",
+        type=argparse.FileType("w"),
+        default=sys.stdout,
+        help="Name of output data file. Can also be piped to stdout by ommiting the '-o' command. (Default: stdout)",
+    )
 
-    ap.add_argument("-d", "--deliminter", dest='DELIM', type=str, default="  ",
-                    help="Delimiter to use in file output. (Default: two spaces)")
+    ap.add_argument(
+        "-d",
+        "--deliminter",
+        dest="DELIM",
+        type=str,
+        default="  ",
+        help="Delimiter to use in file output. (Default: two spaces)",
+    )
 
-    ap.add_argument("-DO", "--order", dest='DO', type=int, default=1,
-                    help="Derivative order of the calculation (Default: 1)")
+    ap.add_argument(
+        "-DO",
+        "--order",
+        dest="DO",
+        type=int,
+        default=1,
+        help="Derivative order of the calculation (Default: 1)",
+    )
 
-    ap.add_argument("-NPT", "--numpoints", dest='NPT', type=int, default=5,
-                    help="Number of points to use in the derivative calculation (Default: 5)")
+    ap.add_argument(
+        "-NPT",
+        "--numpoints",
+        dest="NPT",
+        type=int,
+        default=5,
+        help="Number of points to use in the derivative calculation (Default: 5)",
+    )
 
-    ap.add_argument("-m", "--method", dest='METHOD', type=str, default="derivative",
-                    help="Whether to derivate or integrate the data. \n\nAvailable methods are: ['derivative', 'derivate', 'der', 'd', 'integral', 'integrate', 'int','i']. (Default 'derivative')")
+    ap.add_argument(
+        "-m",
+        "--method",
+        dest="METHOD",
+        type=str,
+        default="derivative",
+        help="Whether to derivate or integrate the data. \n\nAvailable methods are: ['derivative', 'derivate', 'der', 'd', 'integral', 'integrate', 'int','i']. (Default 'derivative')",
+    )
 
-    ap.add_argument("-s", "--solver", dest='SOLVER', type=str, default="numpy",
-                    help="The solver type to use for inverting the derivative matrix.  Available methods are: ['numpy','scipy']. (Default: numpy)")
+    ap.add_argument(
+        "-s",
+        "--solver",
+        dest="SOLVER",
+        type=str,
+        default="numpy",
+        help="The solver type to use for inverting the derivative matrix.  Available methods are: ['numpy','scipy']. (Default: numpy)",
+    )
 
     # ap.add_argument("-p", "--plot", dest='PLOT', type=bool, default=False, \
     #                 help="Whether to output a plot of the derivation/integration [True,False]. (Default: False)")
 
     args = vars(ap.parse_args())
 
-    infile = args['INFILE']
-    outfile = args['OUTFILE']
-    DELIM = args['DELIM']
-    DO = args['DO']
-    NPT = args['NPT']
-    METHOD = args['METHOD']
-    SOLVER = args['SOLVER']
+    infile = args["INFILE"]
+    outfile = args["OUTFILE"]
+    DELIM = args["DELIM"]
+    DO = args["DO"]
+    NPT = args["NPT"]
+    METHOD = args["METHOD"]
+    SOLVER = args["SOLVER"]
 
     x, y = np.loadtxt(infile, unpack=True)
     print(f"Sucessfully loaded {infile}")
