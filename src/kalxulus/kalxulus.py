@@ -249,7 +249,7 @@ class Kalxulus:
             num_points (int, optional): Stencil size to use. Defaults to self.num_points.
 
         Returns:
-            numpy.ndarray: The differentiated values with the same length as x_values.
+            NDArray[np.float64]: The differentiated values with the same length as x_values.
 
         Raises:
             TypeError: If derivative_order or num_points are not valid integers.
