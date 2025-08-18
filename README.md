@@ -1,9 +1,15 @@
 # Kalxulus
 
+[![Lint/Test](https://github.com/Kalixo-Labs/kalxulus/actions/workflows/lint-and-test.yml/badge.svg?branch=main)](https://github.com/Kalixo-Labs/kalxulus/actions/workflows/lint-and-test.yml)
+[![Docs](https://github.com/Kalixo-Labs/kalxulus/actions/workflows/generate-docs.yml/badge.svg?branch=main)](https://github.com/Kalixo-Labs/kalxulus/actions/workflows/generate-docs.yml)
+
 ![Python Version](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-GPLv3-green)
 
-A toolset for the calculation of high-precision derivatives and integrals of numerical data sets.
+Kalxulus is a high-precision numerical toolset for computing derivatives and integrals of discrete datasets. It
+calculates N-th order derivatives and integrals using an arbitrary number of points via finite difference methods. By
+leveraging point-based calculations, it delivers extremely accurate results for scientific and engineering applications
+requiring precise derivatives and integrals from x-y data.
 
 ## Features
 
@@ -20,6 +26,7 @@ pip install kalixo-kalxulus
 ```
 
 ## Quick Start
+
 ```
 import numpy as np
 from kalxulus import Kalxulus

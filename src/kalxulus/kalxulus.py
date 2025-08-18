@@ -39,12 +39,12 @@ from scipy.sparse import csr_matrix
 
 class Kalxulus:
     def __init__(
-        self,
-        x_values: Optional[Sequence[float] | np.ndarray] = None,
-        derivative_order: int = 1,
-        num_points: int = 8,
-        solver: Literal["numpy", "scipy"] = "scipy",
-        tolerance: float = 1e-8,
+            self,
+            x_values: Optional[Sequence[float] | np.ndarray] = None,
+            derivative_order: int = 1,
+            num_points: int = 8,
+            solver: Literal["numpy", "scipy"] = "scipy",
+            tolerance: float = 1e-8,
     ) -> None:
         """Compute numerical derivatives and integrals over 1-D sample points.
 
@@ -145,14 +145,6 @@ class Kalxulus:
         self.num_points = int(num_points)
         self.gen_coefficients(int(derivative_order), int(num_points))
 
-    def __call__(self):
-        # """Return the internal state as a dictionary.
-        #
-        # Returns:
-        #     dict: The instance __dict__ containing configuration and caches.
-        # """
-        return self.__dict__
-
     def __G_function(self, ld, derivative_order):
         # Private helper; no public docstring required.
         if (derivative_order, ld) in self.G:
@@ -235,8 +227,8 @@ class Kalxulus:
                     pass
                 else:
                     coeffs[i, j] = (
-                        self.__a_function(delta[j].compressed(), derivative_order)
-                        / prods[j]
+                            self.__a_function(delta[j].compressed(), derivative_order)
+                            / prods[j]
                     )
             coeffs[i, np.abs(coeffs[i, :]) < self.tolerance] = 0.0
             coeffs[i, i - factors[i]] = -1.0 * coeffs[i].sum()
@@ -259,10 +251,10 @@ class Kalxulus:
         return None
 
     def derivative(
-        self,
-        y_values: Union[Sequence[float] | np.ndarray],
-        derivative_order: int = None,
-        num_points: int = None,
+            self,
+            y_values: Union[Sequence[float] | np.ndarray],
+            derivative_order: int = None,
+            num_points: int = None,
     ) -> np.ndarray:
         """Apply the derivative operator to y-values.
 
@@ -310,7 +302,7 @@ class Kalxulus:
         return y_inv - y_inv[0] + constant
 
     def integral(
-        self, y_values, integration_order=None, num_points=None, constant=0.0
+            self, y_values, integration_order=None, num_points=None, constant=0.0
     ) -> np.ndarray:
         """Numerically integrate y-values by inverting the derivative operator.
 
