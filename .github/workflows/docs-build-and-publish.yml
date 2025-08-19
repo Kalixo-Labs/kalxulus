@@ -99,14 +99,20 @@ jobs:
       - lint-and-test
       - build-docs
       - build
+    environment:
+      name: pypi-publish
+      url: https://pypi.org/p/kalxulus/
+    permissions:
+      contents: read                      # needed for actions/checkout
+      id-token: write                     # REQUIRED for Trusted Publishing (OIDC)
     steps:
-      - name: Retrieve release distributions
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
-          name: release-dists
-          path: dist/
-      - name: Publish to PyPI
+          name: dist
+          path: dist
+      - name: Publish to PyPI via Trusted Publishing
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          password: ${{ secrets.PYPI_TOKEN }}
-          packages-dir: dist/
+          # No user/password! OIDC will be used automatically.
+          # attestations are ON by default
+          skip-existing: false

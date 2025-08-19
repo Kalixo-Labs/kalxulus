@@ -4,7 +4,7 @@ requires = ["hatchling>=1.25", "hatch-vcs>=0.4"]
 build-backend = "hatchling.build"
 
 [project]
-name = "kalixo-kalxulus"
+name = "kalxulus"
 description = "High-precision derivatives and integrals for discrete datasets."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -40,7 +40,9 @@ dependencies = ["numpy>=1.22", "scipy>=1.9"]
 test = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
-    "flake8"
+    "flake8",
+    "numpy",
+    "scipy"
 ]
 docs = [
     "mkdocs",
@@ -81,7 +83,7 @@ packages = ["src/kalxulus"]
 artifacts = ["src/kalxulus/_version.py"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src", "README.md", "LICENSE", "tests", "docs"]
+include = ["src", "README.md", "LICENSE", "tests", "docs", "benchmarks"]
 
 [tool.pytest.ini_options]
 addopts = "-ra"
