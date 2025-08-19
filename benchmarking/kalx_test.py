@@ -1,4 +1,4 @@
-from src.kalxulus import Kalxulus
+from kalxulus import Kalxulus
 import numpy as np
 
 x = np.linspace(0, 3, 200)**2 #to make nonuniform
