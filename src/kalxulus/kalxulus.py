@@ -36,16 +36,278 @@ from typing import Literal, Optional, Sequence, Union
 import numpy as np
 from scipy.sparse import csr_matrix
 
+from dataclasses import dataclass
+from typing import Tuple, Optional
+import numpy as np
 
-class Kalxulus:
+
+@dataclass
+class StencilConfig:
+    eo: float = 1e-6  # target error threshold
+    num_points_guess: int = 5  # initial stencil size in points
+    max_points: int = 11  # maximum stencil size in points
+    only_nonuniform: bool = True
+    uniform_tol: float = 1e-12
+    max_iters_factor: int = 2  # safety cap: max_iters = factor * max_points
+
+
+class ErrorEstimatorMixin:
+    """
+    Expects: self.x_values: np.ndarray
+    Public API returns and accepts num_points (stencil size in POINTS).
+    """
+
+    def __init__(self, stencil_config: Optional[StencilConfig] = None):
+        # Note: we *don’t* call super().__init__ here to avoid interfering with your
+        # existing Kalxulus.__init__. Kalxulus will call this explicitly.
+        self._stencil_config = stencil_config or StencilConfig()
+
+    # --- Public API ---
+
+    def set_stencil_config(self, **kwargs) -> "ErrorEstimatorMixin":
+        for k, v in kwargs.items():
+            if not hasattr(self._stencil_config, k):
+                raise AttributeError(f"Unknown stencil config option: {k}")
+            setattr(self._stencil_config, k, v)
+        return self
+
+    def compute_stencil_requirements(self) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Returns
+        -------
+        num_points : (n,) int array   # stencil size in points
+        error      : (n,) float array
+        """
+        x = np.asarray(self.x_values, dtype=float)
+        cfg = self._stencil_config
+        n = x.size
+
+        num_points = np.full(n, max(2, int(cfg.num_points_guess)), dtype=int)
+        num_points = np.minimum(num_points, max(2, int(cfg.max_points)))
+        errs = np.full(n, np.nan, dtype=float)
+
+        to_process = np.ones(n, dtype=bool)
+        if cfg.only_nonuniform:
+            to_process = self._nonuniform_points(
+                x, window_points=int(cfg.num_points_guess), tol=cfg.uniform_tol
+            )
+
+        idxs0 = np.where(to_process)[0]
+        if idxs0.size > 0:
+            # initial guess is uniform, so take any representative entry
+            n_intervals0 = int(num_points[idxs0[0]]) - 1
+            E0, ok0 = self._error_for_batch(x, idxs0, n_intervals0)
+            errs[idxs0] = E0
+
+        done = ~to_process | (errs <= cfg.eo) | (num_points >= cfg.max_points)
+
+        max_iters = cfg.max_iters_factor * cfg.max_points
+        iters = 0
+        while True:
+            iters += 1
+            if iters > max_iters:
+                break
+            need = ~done
+            if not np.any(need):
+                break
+            if np.all(num_points[need] >= cfg.max_points):
+                break
+
+            num_points_next = np.minimum(num_points + 1, cfg.max_points)
+
+            for s in np.unique(num_points_next[need]):
+                grp = need & (num_points_next == s)
+                if not np.any(grp):
+                    continue
+                idxs = np.where(grp)[0]
+                n_intervals = int(s) - 1
+                E, ok = self._error_for_batch(x, idxs, n_intervals)
+
+                replace = np.isnan(errs[idxs]) | (E < errs[idxs]) | (errs[idxs] > cfg.eo)
+                replace &= ok
+                errs[idxs[replace]] = E[replace]
+                num_points[idxs[replace]] = int(s)
+
+            done = ~to_process | (errs <= cfg.eo) | (num_points >= cfg.max_points)
+
+        return num_points, errs
+
+    def compute_stencil_for_index(self, i: int) -> Tuple[int, float]:
+        """
+        Returns (num_points, error) for index i.
+        """
+        x = np.asarray(self.x_values, dtype=float)
+        cfg = self._stencil_config
+
+        Error = cfg.eo + 1.0
+        num_points = min(max(2, int(cfg.num_points_guess)), int(cfg.max_points))
+
+        while Error > cfg.eo and num_points < cfg.max_points:
+            num_points += 1
+            n_intervals = num_points - 1
+            E, ok = self._error_for_batch(x, np.array([i]), n_intervals)
+            Error = E[0] if ok[0] else np.nan
+            if not np.isfinite(Error):
+                break
+
+        return num_points, Error
+
+    # --- Internals ---
+
+    @staticmethod
+    def _factor_for_indices(indxs: np.ndarray, n_intervals: int, N: int):
+        K = n_intervals // 2
+        factor = np.empty_like(indxs)
+        left = indxs < K
+        mid = (~left) & (indxs <= (N - K - 1))
+        right = ~(left | mid)
+        factor[left] = 0
+        factor[mid] = indxs[mid] - K
+        factor[right] = N - n_intervals
+        return factor, K
+
+    @staticmethod
+    def _nonuniform_points(x: np.ndarray, window_points: int, tol: float) -> np.ndarray:
+        x = np.asarray(x, dtype=float)
+        n = x.size
+        if n < 3 or window_points <= 2:
+            return np.ones(n, dtype=bool)
+        gaps = np.diff(x)
+        win_g = window_points - 1
+        if win_g <= 0 or (n - 1 - win_g + 1) <= 0:
+            return np.ones(n, dtype=bool)
+
+        gW = np.lib.stride_tricks.sliding_window_view(gaps, win_g)
+        gmax = gW.max(axis=1);
+        gmin = gW.min(axis=1);
+        gmean = gW.mean(axis=1)
+        uniform = (gmax - gmin) <= (np.abs(gmean) + 1.0) * tol
+
+        center = window_points // 2
+        centers = np.arange(uniform.size) + center
+
+        mask = np.ones(n, dtype=bool)
+        mask[:] = True
+        mask[centers[uniform]] = False
+        mask[:center] = True
+        mask[n - center:] = True
+        return mask
+
+    @staticmethod
+    def _error_for_batch(x: np.ndarray, indxs: np.ndarray, n_intervals: int):
+        """
+        n_intervals = num_points - 1
+        Returns (Error, ok), guaranteed — no warnings on divide-by-zero.
+        """
+        from math import factorial  # local import: avoids touching module-level imports
+
+        x = np.asarray(x, dtype=float)
+        N = len(x) - 1
+        M = indxs.size
+        lx = n_intervals + 1
+
+        # Preallocate outputs so we always return (Error, ok)
+        Error = np.full(M, np.nan, dtype=float)
+        ok = np.zeros(M, dtype=bool)
+
+        # Trivial / empty batch
+        if lx < 2 or M == 0 or N < 1:
+            # Error stays nan for empty; mark ok=True only for structurally valid rows
+            if M > 0 and lx >= 2:
+                ok[:] = True
+                Error[:] = 0.0
+            return Error, ok
+
+        # Window placement (left/center/right stencil anchor)
+        factor, _K = ErrorEstimatorMixin._factor_for_indices(indxs, n_intervals, N)
+        start = factor
+        stop = factor + lx
+        valid = (start >= 0) & (stop <= len(x))
+
+        # If no valid windows at all, return (Error=nan, ok=False) — already set.
+        if not np.any(valid):
+            return Error, ok
+
+        # Work only on valid rows
+        v_idx = np.where(valid)[0]
+        v_start = start[v_idx]
+        v_indxs = indxs[v_idx]
+
+        cols = np.arange(lx)
+        W = v_start[:, None] + cols[None, :]  # (V, lx) indices
+        xw = x[W]  # (V, lx)
+        idx0 = v_indxs - v_start  # (V,)
+
+        # fac1 = 1/(n_intervals+1)!
+        fac1 = 1.0 / factorial(lx)
+
+        # dt = xw - x[i]
+        xi = x[v_indxs]
+        dt = xw - xi[:, None]  # (V, lx)
+
+        # fac2: product of dt excluding the center (achieve by setting center dt=1 first)
+        dt2 = dt.copy()
+        dt2[np.arange(v_idx.size), idx0] = 1.0
+        fac2 = np.prod(dt2, axis=1)  # (V,)
+
+        # Pairwise differences D[j,k] = x_j - x_k
+        D = xw[:, :, None] - xw[:, None, :]  # (V, lx, lx)
+        jj = np.arange(lx)
+
+        # product over k != j: set diag to 1 then product last axis
+        D_no_diag = D.copy()
+        D_no_diag[:, jj, jj] = 1.0
+        row_prod_excl_diag = np.prod(D_no_diag, axis=2)  # (V, lx)
+
+        # denom[j] = (∏_{k≠j} (x_j - x_k)) / (x_j - x_idx0)
+        D_j_idx0 = D[np.arange(v_idx.size)[:, None], jj[None, :], idx0[:, None]]  # (V, lx)
+        # Safe divide: where denominator is zero, put nan (we'll mask later)
+        denom = np.empty_like(row_prod_excl_diag)
+        np.divide(row_prod_excl_diag, D_j_idx0, out=denom, where=(D_j_idx0 != 0))
+
+        # terms: zero at j==idx0, else dt[j]**(n_intervals-1) / denom[j]
+        term = np.zeros_like(dt)
+        mask = (jj[None, :] != idx0[:, None])
+        numer = np.zeros_like(dt)
+        # When n_intervals == 0, power 0 => 1 on mask; but lx>=2 ⇒ n_intervals>=1 in practice
+        if n_intervals >= 1:
+            numer[mask] = dt[mask] ** (n_intervals - 1)
+        else:
+            numer[mask] = 1.0
+
+        # Only fill where denom is finite & nonzero
+        safe = mask & np.isfinite(denom) & (denom != 0)
+        term[safe] = numer[safe] / denom[safe]
+
+        fac3 = np.sum(term, axis=1)  # (V,)
+
+        E_v = np.abs(fac1 * fac2 * fac3)
+
+        # Write back into full arrays
+        Error[v_idx] = E_v
+        ok[v_idx] = np.isfinite(E_v)
+
+        # For invalid rows, Error stays nan, ok stays False
+        return Error, ok
+
+
+class Kalxulus(ErrorEstimatorMixin):
     def __init__(
             self,
             x_values: Optional[Sequence[float] | np.ndarray] = None,
             derivative_order: int = 1,
             num_points: int = 8,
+            eo: float = 1e-7,
             solver: Literal["numpy", "scipy"] = "scipy",
-            tolerance: float = 1e-8,
+            coeff_tolerance: float = 1e-8,
+            # ---- NEW knobs for the error estimator / stencil search ----
+            num_points_guess: Optional[int] = None,  # default to self.num_points if None
+            max_points: int = 21,
+            only_nonuniform: bool = False,
+            uniform_tol: float = 1e-12,
+            max_iters_factor: int = 2,
     ) -> None:
+
         """Compute numerical derivatives and integrals over 1-D sample points.
 
         Builds finite-difference derivative matrices for an arbitrary 1-D grid
@@ -60,7 +322,7 @@ class Kalxulus:
                 scheme (must be >= 1). The effective stencil length is num_points + 1.
             solver: Backend used to store/apply the operator. Either "numpy" (dense)
                 or "scipy" (sparse), case-insensitive.
-            tolerance: Positive threshold used to zero-out small coefficients
+            coeff_tolerance: Positive threshold used to zero-out small coefficients
                 during coefficient generation.
 
         Attributes:
@@ -68,7 +330,7 @@ class Kalxulus:
             derivative_order (int): Default derivative order used when none is specified.
             num_points (int): Default number of stencil points.
             solver (str): Normalized solver backend, one of {"numpy", "scipy"}.
-            tolerance (float): Coefficient zeroing threshold.
+            coeff_tolerance (float): Coefficient zeroing threshold.
             G (dict[tuple[int, int], np.ndarray]): Cache for internal combinatorial masks.
             derivative_coefficients (dict[tuple[int, int], np.ndarray | scipy.sparse.csc_matrix]):
                 Cached derivative operators keyed by (derivative_order, num_points).
@@ -124,12 +386,62 @@ class Kalxulus:
         self.solver = solver_norm
 
         # tolerance
-        if not isinstance(tolerance, float):
+        if not isinstance(coeff_tolerance, float):
             raise TypeError("tolerance must be a real number.")
-        tolerance = float(tolerance)
-        if tolerance <= 0:
+        coeff_tolerance = float(coeff_tolerance)
+        if coeff_tolerance <= 0:
             raise ValueError("tolerance must be > 0.")
-        self.tolerance = tolerance
+        self.coeff_tolerance = coeff_tolerance
+
+        # ---- Stencil / error estimator configuration ----
+        # Store eo and max_points at the instance level for convenient access elsewhere:
+        if not isinstance(eo, (int, float)):
+            raise TypeError("eo must be a real number.")
+        self.eo = float(eo)
+        if self.eo <= 0:
+            raise ValueError("eo must be > 0.")
+
+        if not isinstance(max_points, int):
+            raise TypeError("max_points must be an integer.")
+        self.max_points = int(max_points)
+        if self.max_points < 2:
+            raise ValueError("max_points must be >= 2.")
+
+        # Default num_points_guess to current self.num_points if not supplied:
+        if num_points_guess is None:
+            num_points_guess = int(self.num_points)
+        else:
+            num_points_guess = int(num_points_guess)
+        if num_points_guess < 2:
+            raise ValueError("num_points_guess must be >= 2.")
+
+        if not isinstance(only_nonuniform, bool):
+            raise TypeError("only_nonuniform must be a boolean.")
+
+        if not isinstance(uniform_tol, (int, float)):
+            raise TypeError("uniform_tol must be a real number.")
+        uniform_tol = float(uniform_tol)
+        if uniform_tol < 0:
+            raise ValueError("uniform_tol must be >= 0.")
+
+        if not isinstance(max_iters_factor, int):
+            raise TypeError("max_iters_factor must be an integer.")
+        max_iters_factor = int(max_iters_factor)
+        if max_iters_factor < 1:
+            raise ValueError("max_iters_factor must be >= 1.")
+
+        # Build the config for the mixin (all values come from Kalxulus.__init__)
+        _cfg = StencilConfig(
+            eo=self.eo,
+            num_points_guess=num_points_guess,
+            max_points=self.max_points,
+            only_nonuniform=only_nonuniform,
+            uniform_tol=uniform_tol,
+            max_iters_factor=max_iters_factor,
+        )
+
+        # Explicitly initialize the mixin (keeps your current __init__ logic intact)
+        ErrorEstimatorMixin.__init__(self, stencil_config=_cfg)
 
         self.G = {}
         self.derivative_coefficients = {}
@@ -230,7 +542,7 @@ class Kalxulus:
                             self.__a_function(delta[j].compressed(), derivative_order)
                             / prods[j]
                     )
-            coeffs[i, np.abs(coeffs[i, :]) < self.tolerance] = 0.0
+            coeffs[i, np.abs(coeffs[i, :]) < self.coeff_tolerance] = 0.0
             coeffs[i, i - factors[i]] = -1.0 * coeffs[i].sum()
         coeffs *= derivative_order_factorial
         if self.solver == "numpy":

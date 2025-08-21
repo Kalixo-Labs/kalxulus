@@ -89,7 +89,7 @@ def derivative(
         derivative_order=derivative_order,
         num_points=num_points,
         solver=solver,
-        tolerance=tolerance,
+        coeff_tolerance=tolerance,
     )
     return kx.derivative(np.asarray(y_values))
 
@@ -140,7 +140,7 @@ def integral(
         ),  # internal order used to construct operator
         num_points=num_points,
         solver=solver,
-        tolerance=tolerance,
+        coeff_tolerance=tolerance,
     )
     return kx.integral(
         np.asarray(y_values),
