@@ -41,7 +41,6 @@ def errorO(x, indx, do, eo, npt_guess):
             lx, K, N, hold = int(npt1 + 1), int(npt1 / 2), int(len(x) - 1), []
             fac1, fac2, fac3 = 0, 1., 0
             fac1 = 1. / fact(npt1 + 1)
-            # factor = 0
             if indx < K:
                 factor = 0
             if indx >= K and indx <= N - K - 1:
